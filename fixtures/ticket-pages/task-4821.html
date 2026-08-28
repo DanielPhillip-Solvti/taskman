@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  Fixture mimicking the DOM shape of an Odoo 17+ project.task form view, built from
+  spec §10.2's assumptions (Owl-rendered form, o_form_sheet, chatter composer) since no
+  real ticketing Odoo instance is reachable from this sandbox. Used by Milestone 6's
+  gate to exercise scraping/injection against a stable, versioned fixture instead of a
+  live instance. See docs/spikes/s3-ui-injection.md for the selector map and caveats.
+-->
+<html>
+<head><title>Odoo</title></head>
+<body>
+<div id="wrapwrap">
+  <div class="o_action_manager">
+    <div class="o_form_view o_form_readonly" data-project-name="Client A">
+      <div class="o_form_sheet_bg">
+        <div class="o_form_sheet">
+          <h1 class="o_task_number"><span class="o_form_label">#4821</span></h1>
+          <div class="o_field_widget o_field_char" name="name">
+            <span class="o_input">Invoice rounding is off by one cent on partial refunds</span>
+          </div>
+          <div class="o_field_widget o_field_html" name="description">
+            <div class="o_readonly">
+              <p>When a partial refund is issued on an invoice with a 3-line discount, the
+              rounding applied to the last line does not match the customer-facing total.</p>
+            </div>
+            <!-- Taskman's description-append target: a div with this exact data attribute
+                 must survive save/reload idempotently (spec §11.2) -->
+          </div>
+        </div>
+      </div>
+      <div class="o_form_statusbar">
+        <div class="o_statusbar_status">
+          <button data-value="in_progress" class="o_arrow_button o_status">In Progress</button>
+        </div>
+      </div>
+    </div>
+    <div class="o_Chatter">
+      <div class="o_ChatterTopbar">
+        <button class="o_ChatterTopbar_buttonSendMessage">Send message</button>
+      </div>
+      <div class="o_Composer">
+        <div class="o_Composer_coreMain">
+          <textarea class="o_ComposerTextInput_textarea" placeholder="Send a message..."></textarea>
+          <input type="file" class="o_FileUploader_input" multiple style="display:none" />
+        </div>
+        <div class="o_Composer_actionButtons">
+          <button class="o_Composer_buttonSend">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
