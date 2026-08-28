@@ -38,6 +38,29 @@ class Task(BaseModel):
     updated_at: str | None = None
 
 
+class LogError(BaseModel):
+    """One parsed problem from an Odoo startup log (technical-spec.md §6.2 step 8)."""
+
+    level: str  # "CRITICAL" | "ERROR" | "WARNING"
+    module: str | None = None
+    message: str
+    file: str | None = None
+    line: int | None = None
+    exc_type: str | None = None  # e.g. "ParseError", "ImportError", "ValidationError"
+    traceback: str | None = None
+
+
+class DeployResult(BaseModel):
+    """technical-spec.md §4.3."""
+
+    ok: bool
+    duration_s: float
+    modules_updated: list[str] = []
+    errors: list[LogError] = []
+    log_tail: str = ""
+    url: str = ""
+
+
 class Phase(BaseModel):
     id: int | None = None
     task_id: str

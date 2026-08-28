@@ -1,0 +1,18 @@
+2026-08-28 18:00:00,000 123 INFO taskman_test_demo_client odoo.modules.loading: loading 1 modules...
+2026-08-28 18:00:00,100 123 INFO taskman_test_demo_client odoo.modules.loading: Loading module taskman_demo (1/1)
+2026-08-28 18:00:00,200 123 ERROR taskman_test_demo_client odoo.tools.convert: Parse error at /repos/repo/addons/taskman_demo/views/taskman_demo_views.xml:12 while parsing /repos/repo/addons/taskman_demo/views/taskman_demo_views.xml:12, somewhere inside
+<record id="view_taskman_demo_form" model="ir.ui.view">
+    <field name="name">taskman.demo.form</field>
+    <field name="model">taskman.demo</field>
+    <field name="arch" type="xml">
+        <invalid_tag name="name"/>
+    </field>
+</record>
+Traceback (most recent call last):
+  File "/repos/odoo/odoo/tools/convert.py", line 698, in parse
+    self._tag_root(rec)
+  File "/repos/odoo/odoo/tools/convert.py", line 658, in _tag_root
+    raise ParseError('while parsing %s:%s, somewhere inside\n%s' % (
+odoo.tools.convert.ParseError: while parsing /repos/repo/addons/taskman_demo/views/taskman_demo_views.xml:12, somewhere inside
+<record id="view_taskman_demo_form" model="ir.ui.view">
+2026-08-28 18:00:00,300 123 CRITICAL taskman_test_demo_client odoo.modules.loading: Failed to load module taskman_demo
