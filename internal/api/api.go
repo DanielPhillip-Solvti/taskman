@@ -172,6 +172,7 @@ func (s *Server) handleFetchRepo(w http.ResponseWriter, r *http.Request) {
 
 type taskReq struct {
 	RepoName    string `json:"repo_name"`
+	Title       string `json:"title"`
 	Description string `json:"description"`
 }
 
@@ -192,7 +193,7 @@ func (s *Server) handleImplement(w http.ResponseWriter, r *http.Request) {
 	s.queue(w, r, s.mgr.QueueTask)
 }
 
-func (s *Server) queue(w http.ResponseWriter, r *http.Request, fn func(int, string, string) (*work.Task, error)) {
+func (s *Server) queue(w http.ResponseWriter, r *http.Request, fn func(int, string, string, string) (*work.Task, error)) {
 	number, err := pathNumber(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
@@ -203,7 +204,7 @@ func (s *Server) queue(w http.ResponseWriter, r *http.Request, fn func(int, stri
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	task, err := fn(number, req.RepoName, req.Description)
+	task, err := fn(number, req.RepoName, req.Title, req.Description)
 	if err != nil {
 		var busy work.ErrRepoBusy
 		if errors.As(err, &busy) {

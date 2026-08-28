@@ -44,9 +44,21 @@ git clone -q "$WORK/scratch.git" "$WORK/seed"
 log "setting up fake odoo-env root + stub dev container ($FAKE_CONTAINER)"
 mkdir -p "$FAKE_ENV_ROOT/repos"
 docker run -d --rm --name "$FAKE_CONTAINER" -v "$FAKE_ENV_ROOT:/code" -w / alpine:latest sleep 300 >/dev/null
-docker exec "$FAKE_CONTAINER" sh -c '
-  printf "#!/bin/sh\nshift\necho CLAUDE_STUB refined ticket. prompt was: \$*\n" > /usr/local/bin/claude &&
-  chmod +x /usr/local/bin/claude'
+
+# Stub `claude` binary: a real script (not agent-authored) that plays the
+# part of the harness CLI, distinguishing the "write a PR summary" prompt
+# from any other prompt so the implement flow's summary step is verifiable.
+cat > "$WORK/claude-stub.sh" <<'STUB'
+#!/bin/sh
+shift
+prompt="$*"
+case "$prompt" in
+  *"pull-request summary"*) echo "STUB_SUMMARY: did the thing" ;;
+  *) echo "STUB_AGENT: prompt length ${#prompt}" ;;
+esac
+STUB
+chmod +x "$WORK/claude-stub.sh"
+docker cp "$WORK/claude-stub.sh" "$FAKE_CONTAINER:/usr/local/bin/claude"
 
 log "starting daemon (home=$WORK/home)"
 TASKMAN_HOME="$WORK/home" TASKMAN_ADDR="$ADDR" "$WORK/taskmand" > "$WORK/daemon.log" 2>&1 &
@@ -101,7 +113,7 @@ for _ in $(seq 1 40); do
   sleep 0.25
 done
 [ "$DONE" = "1" ] || fail "task 42 never reached a terminal state"
-echo "$OUT" | grep -q 'CLAUDE_STUB refined ticket' && log "stub harness output captured in log" || fail "expected stub output in task log, got: $OUT"
+echo "$OUT" | grep -q 'STUB_AGENT' && log "stub harness output captured in log" || fail "expected stub output in task log, got: $OUT"
 
 log "tasks: second task on a busy repo is refused with the holder's id"
 curl -fs -X POST "http://$ADDR/tasks/43/refine" -d '{"repo_name":"scratch","description":"slow one"}' >/dev/null
@@ -116,6 +128,50 @@ for _ in $(seq 1 20); do
 done
 curl -fs "http://$ADDR/tasks/43/output" | grep -q '"status":"interrupted"' \
   && log "interrupt reflected" || fail "task 43 was not marked interrupted"
+
+log "tasks: implement flow — pulls main, creates branch, delegates, summarizes, pushes, opens PR"
+# Task 43's interrupt (above) marks it "interrupted" synchronously but the
+# repo lock only releases once the SIGTERM'd process actually exits, which
+# is asynchronous — so retry briefly instead of assuming it's released the
+# instant the interrupt call returns.
+IMPLEMENT_RES=""
+for _ in $(seq 1 40); do
+  IMPLEMENT_RES=$(curl -s -X POST "http://$ADDR/tasks/50/implement" -d '{"repo_name":"scratch","title":"Fix Widget Color","description":"the button is the wrong color"}')
+  echo "$IMPLEMENT_RES" | grep -q '"status":"queued"' && break
+  sleep 0.25
+done
+echo "$IMPLEMENT_RES" | grep -q '"status":"queued"' && log "implement queued" || fail "implement did not queue: $IMPLEMENT_RES"
+
+DONE=0
+for _ in $(seq 1 80); do
+  OUT=$(curl -fs "http://$ADDR/tasks/50/output")
+  case "$OUT" in
+    *'"status":"done"'*) DONE=1; break ;;
+    *'"status":"failed"'*) fail "task 50 failed: $OUT"; DONE=1; break ;;
+  esac
+  sleep 0.25
+done
+[ "$DONE" = "1" ] || fail "task 50 never reached a terminal state (last seen: $OUT)"
+
+echo "$OUT" | grep -q '"branch":"task/50-fix-widget-color"' \
+  && log "branch name derived from task number + title" || fail "unexpected/missing branch in output: $OUT"
+echo "$OUT" | grep -q 'STUB_SUMMARY' \
+  && log "agent-authored summary captured" || fail "expected summary text in output: $OUT"
+
+(cd "$FAKE_ENV_ROOT/repos/scratch" && git rev-parse --verify task/50-fix-widget-color >/dev/null 2>&1) \
+  && log "task branch exists locally" || fail "task branch was not created in the repo"
+git --git-dir="$WORK/scratch.git" branch --list 'task/50-*' | grep -q 'task/50' \
+  && log "task branch was pushed to the remote" || fail "task branch was not pushed to the scratch remote"
+
+SUMMARY_FILE="$WORK/home/tasks/50.summary.md"
+[ -s "$SUMMARY_FILE" ] && log "summary written to its own file (50.summary.md)" || fail "expected non-empty $SUMMARY_FILE"
+grep -q 'STUB_SUMMARY' "$SUMMARY_FILE" && log "summary file content matches captured summary" || fail "summary file content unexpected"
+
+# The scratch remote is a local bare repo, not GitHub, so `gh pr create`
+# necessarily fails here — that's the expected shape: reported plainly,
+# task still lands on Done because the implementation itself succeeded.
+echo "$OUT" | grep -q 'PR creation failed' \
+  && log "PR-creation failure surfaced (expected: scratch remote isn't a real GitHub repo)" || fail "expected PR-failure message in output: $OUT"
 
 if [ "$PASS" = "1" ]; then
   echo "== taskman verify: PASS =="

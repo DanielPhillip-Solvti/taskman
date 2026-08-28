@@ -43,10 +43,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse(await call("/repos/fetch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: msg.url, odoo_version: msg.odooVersion }) }));
         break;
       case "refineTask":
-        sendResponse(await call(`/tasks/${msg.number}/refine`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repo_name: msg.repoName, description: msg.description }) }));
+        sendResponse(await call(`/tasks/${msg.number}/refine`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repo_name: msg.repoName, title: msg.title, description: msg.description }) }));
         break;
       case "implementTask":
-        sendResponse(await call(`/tasks/${msg.number}/implement`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repo_name: msg.repoName, description: msg.description }) }));
+        sendResponse(await call(`/tasks/${msg.number}/implement`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repo_name: msg.repoName, title: msg.title, description: msg.description }) }));
         break;
       case "taskOutput":
         sendResponse(await call(`/tasks/${msg.number}/output`));

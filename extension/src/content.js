@@ -126,7 +126,8 @@ async function main() {
         type: "refineTask",
         number: scraped.taskNumber,
         repoName,
-        description: scraped.title + "\n\n" + scraped.descriptionHtml,
+        title: scraped.title,
+        description: scraped.descriptionHtml,
       });
       if (!res.ok) {
         showPanel(`[taskman] ${res.body?.error || "refine failed to start"}`);
@@ -149,7 +150,8 @@ async function main() {
         type: "implementTask",
         number: scraped.taskNumber,
         repoName,
-        description: scraped.title + "\n\n" + scraped.descriptionHtml,
+        title: scraped.title,
+        description: scraped.descriptionHtml,
       });
       if (!res.ok) {
         showPanel(`[taskman] ${res.body?.error || "implement failed to start"}`);
