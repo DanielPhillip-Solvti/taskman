@@ -1,5 +1,0 @@
-2026-08-28 18:00:00,000 123 INFO taskman_test_demo_client odoo.modules.loading: loading 1 modules...
-2026-08-28 18:00:00,100 123 INFO taskman_test_demo_client odoo.modules.loading: Loading module taskman_demo (1/1)
-2026-08-28 18:00:00,500 123 INFO taskman_test_demo_client odoo.modules.loading: 1 modules loaded in 0.40s, 0 queries
-2026-08-28 18:00:00,600 123 INFO taskman_test_demo_client odoo.modules.loading: Modules loaded.
-2026-08-28 18:00:00,700 123 INFO taskman_test_demo_client odoo.service.server: HTTP service (werkzeug) running on 0.0.0.0:8069
