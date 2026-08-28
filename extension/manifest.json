@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Taskman",
+  "version": "0.1.0",
+  "description": "Buttons on Odoo tickets that drive local CLI coding agents via the taskmand daemon.",
+  "permissions": ["storage"],
+  "host_permissions": ["http://127.0.0.1:8765/*"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*/odoo/*"],
+      "js": ["src/scrape.js", "src/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "src/options.html",
+  "action": {
+    "default_title": "Taskman"
+  }
+}

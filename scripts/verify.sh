@@ -8,6 +8,14 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [ -d "$ROOT/extension/node_modules" ]; then
+  echo "[verify] running extension scrape test"
+  (cd "$ROOT/extension" && npm test) || { echo "[verify] FAIL: extension scrape test"; exit 1; }
+else
+  echo "[verify] skipping extension scrape test (run 'npm install' in extension/ first)"
+fi
+
 WORK="$(mktemp -d /tmp/taskman-verify.XXXXXX)"
 FAKE_VERSION="989.0"
 FAKE_ENV_ROOT="/code/odoo-env-989"

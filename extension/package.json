@@ -1,0 +1,12 @@
+{
+  "name": "taskman-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension: buttons on Odoo tickets driving taskmand.",
+  "scripts": {
+    "test": "node test/scrape.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
+}

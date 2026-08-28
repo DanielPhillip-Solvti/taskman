@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Taskman settings</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; color: #222; }
+  h2 { margin-top: 32px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #eee; font-size: 13px; }
+  input, select { font: inherit; padding: 4px; }
+  input[type=text] { width: 100%; box-sizing: border-box; }
+  button { font: inherit; padding: 6px 12px; cursor: pointer; }
+  .row { display: flex; gap: 8px; margin-top: 6px; }
+  .row > * { flex: 1; }
+  .row > button { flex: 0 0 auto; }
+  #status { margin-top: 8px; font-size: 12px; color: #666; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+  <h1>Taskman</h1>
+
+  <h2>Harness / model</h2>
+  <div class="row">
+    <select id="harness"></select>
+    <select id="model"></select>
+  </div>
+
+  <h2>Project → repo mapping</h2>
+  <p style="font-size:13px;color:#666">
+    Project name must match exactly what appears in the ticket page's breadcrumb.
+  </p>
+  <table id="mappingTable">
+    <thead><tr><th>Project name</th><th>Git URL</th><th>Odoo version</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="row">
+    <input type="text" id="newProject" placeholder="Project name (exact)">
+    <input type="text" id="newUrl" placeholder="git@github.com:Org/repo.git">
+    <input type="text" id="newVersion" placeholder="19.0" style="flex:0 0 70px">
+    <button id="addRow">Add</button>
+  </div>
+
+  <div id="status"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>
