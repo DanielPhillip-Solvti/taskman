@@ -9,7 +9,7 @@ selector drift as likely if the ticketing Odoo's theme changes.
 | Field | Selector | Notes |
 |---|---|---|
 | Task number | `div[name="id"] span` | Odoo's own readonly integer field for the record id. Reliable — this is Odoo core markup, not a custom view. |
-| Project name | `.o_breadcrumb a[data-tooltip*="Back to"][data-tooltip*="form"]` | The breadcrumb link whose tooltip is `Back to "<project>" form`. More robust than an index-based `nth-child` pick since Odoo sometimes adds/removes leading ellipsis items. |
+| Project name | `div[name="project_id"] a`, falling back to `.o_breadcrumb a[data-tooltip*="Back to"][data-tooltip*="form"]` | **Corrected after a real-world miss**: the breadcrumb-only version of this selector was the *only* source originally, but a real ticket URL (`/odoo/action-1326/496/tasks/14619`) has a breadcrumb of just "Projects" / "Tasks" with no project-name item at all — the project_id field is present on every task form regardless of breadcrumb style, so it's now primary. See `fixtures/task-14619.html`. |
 | Task title | `textarea#name_0` (`.value`), falling back to `.o_last_breadcrumb_item.active span.text-truncate` (`.textContent`) | The textarea holds the live editable value; the breadcrumb only reflects the last-saved title, used only if the textarea isn't found (defensive — Odoo sometimes suffixes the id, e.g. `name_1`, when multiple records are open in a multi-record form). |
 | Description (HTML) | `div[name="description"] .odoo-editor-editable` (`.innerHTML`) | Odoo's rich-text editor body. |
 | Chatter: Send message | `.o-mail-Chatter-sendMessage` | Opens the composer. |

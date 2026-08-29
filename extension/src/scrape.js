@@ -13,8 +13,16 @@ function scrapeTaskPage() {
   const taskNumber = parseInt(idEl.textContent.trim(), 10);
   if (Number.isNaN(taskNumber)) return null;
 
-  const projectEl = document.querySelector('.o_breadcrumb a[data-tooltip*="Back to"][data-tooltip*="form"]');
-  const projectName = projectEl ? projectEl.textContent.trim() : "";
+  // Primary: the record's own project_id field, always present regardless
+  // of breadcrumb style. The breadcrumb link (used first in an earlier
+  // version of this scraper) turned out NOT to always exist — some ticket
+  // URLs render a breadcrumb of just "Projects" / "Tasks" with no
+  // project-name item at all, so it's now only a fallback.
+  const projectFieldEl = document.querySelector('div[name="project_id"] a');
+  const projectBreadcrumbEl = document.querySelector('.o_breadcrumb a[data-tooltip*="Back to"][data-tooltip*="form"]');
+  const projectName = (projectFieldEl && projectFieldEl.textContent.trim())
+    || (projectBreadcrumbEl && projectBreadcrumbEl.textContent.trim())
+    || "";
 
   const titleTextarea = document.querySelector('textarea[id^="name_"]');
   const titleBreadcrumb = document.querySelector('.o_last_breadcrumb_item.active span.text-truncate');
