@@ -2,7 +2,8 @@
 
 Chrome extension + local daemon that drives a CLI coding agent (Claude Code)
 against your Odoo tickets. See [docs/PLAN.md](docs/PLAN.md) for the
-architecture.
+architecture and [docs/data-flow.md](docs/data-flow.md) for a sequence
+diagram of a request end to end.
 
 ## Install
 
