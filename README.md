@@ -5,6 +5,23 @@ against your Odoo tickets. See [docs/PLAN.md](docs/PLAN.md) for the
 architecture and [docs/data-flow.md](docs/data-flow.md) for a sequence
 diagram of a request end to end.
 
+## Philosophy & isolation
+
+**Code orchestrates, the agent doesn't.** Fetching repos, picking branches,
+and building the prompt are plain Go — the LLM only ever runs inside one
+`docker exec … claude -p "<prompt>"` call the daemon issues and waits on.
+It's never handed the keys to plan its own next steps.
+
+**No sandbox, by design.** The agent runs with your own credentials inside
+your own dev container — the same git and Docker access you already have —
+rather than behind a separate privilege boundary. That's a deliberate
+trade-off for a single-operator tool, not an oversight: there's no
+meaningfully different trust level between you and the agent to isolate.
+Ticket content (title, description, chatter) is still treated as untrusted
+input and explicitly framed as data, not instructions, when it's handed to
+the agent — the isolation that matters here is prompt-injection resistance,
+not filesystem/network sandboxing.
+
 ## Install
 
 Two pieces, install in either order — each one detects if the other is
