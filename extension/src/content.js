@@ -3,8 +3,17 @@
 // background service worker, write drafts back into the DOM. No Odoo API
 // calls, no state of its own beyond the project->repo mapping in
 // chrome.storage.local.
+//
+// Odoo is a single-page app (Owl framework): the task form's markup is not
+// present at document_idle — it renders asynchronously after that, and
+// navigating between records (breadcrumbs, the pager, opening another
+// task) never triggers a full page load / fresh content-script injection
+// at all. So this can't be a one-shot "scrape once at load" script — it
+// watches the DOM for as long as the tab is open and (re)renders the bar
+// whenever the visible task changes.
 
 const POLL_INTERVAL_MS = 3000;
+const OBSERVER_DEBOUNCE_MS = 150;
 
 function sendToBackground(msg) {
   return chrome.runtime.sendMessage(msg);
@@ -16,7 +25,7 @@ async function getMapping(projectName) {
   return map[projectName] || null;
 }
 
-function buildBar() {
+function buildBarHost() {
   const host = document.createElement("div");
   host.id = "taskman-bar-host";
   host.style.position = "fixed";
@@ -43,7 +52,7 @@ function buildBar() {
   shadow.appendChild(style);
 
   const bar = document.createElement("div");
-  bar.className = "bar taskman-";
+  bar.className = "bar";
   shadow.appendChild(bar);
 
   const panel = document.createElement("div");
@@ -51,7 +60,7 @@ function buildBar() {
   shadow.appendChild(panel);
 
   document.body.appendChild(host);
-  return { bar, panel };
+  return { host, bar, panel };
 }
 
 function button(label, onClick) {
@@ -61,11 +70,10 @@ function button(label, onClick) {
   return b;
 }
 
-async function main() {
-  const scraped = window.__taskmanScrape();
-  if (!scraped) return; // not a task page
-
-  const { bar, panel } = buildBar();
+// Renders the bar for one scraped task snapshot. Whatever this attaches
+// (interval timers, etc.) is torn down by the caller removing `host`.
+async function renderBar(scraped) {
+  const { host, bar, panel } = buildBarHost();
   const status = document.createElement("span");
   status.className = "status";
   status.textContent = `#${scraped.taskNumber}`;
@@ -74,9 +82,9 @@ async function main() {
   const mapping = await getMapping(scraped.projectName);
 
   if (!mapping) {
-    status.textContent = `#${scraped.taskNumber} — "${scraped.projectName}" not mapped`;
+    status.textContent = `#${scraped.taskNumber} — "${scraped.projectName || "(no project name found)"}" not mapped`;
     bar.appendChild(button("Configure…", () => chrome.runtime.openOptionsPage()));
-    return;
+    return host;
   }
 
   let polling = null;
@@ -178,6 +186,49 @@ async function main() {
     const res = await sendToBackground({ type: "interruptTask", number: scraped.taskNumber });
     if (!res.ok) showPanel(`[taskman] ${res.body?.error || "interrupt failed"}`);
   }));
+
+  return host;
 }
 
-main().catch((err) => console.error("[taskman] content script error:", err));
+// --- Watcher: keeps the bar in sync with whatever task (if any) Owl has
+// currently rendered, for as long as this tab lives. ---
+
+let currentHost = null;
+let currentTaskNumber = null;
+let rendering = false;
+
+async function sync() {
+  if (rendering) return; // avoid overlapping renders if mutations fire in a burst
+  const scraped = window.__taskmanScrape();
+
+  if (!scraped) {
+    if (currentHost) {
+      currentHost.remove();
+      currentHost = null;
+      currentTaskNumber = null;
+    }
+    return;
+  }
+
+  if (scraped.taskNumber === currentTaskNumber) return; // already showing this task
+
+  rendering = true;
+  try {
+    if (currentHost) currentHost.remove();
+    currentTaskNumber = scraped.taskNumber;
+    currentHost = await renderBar(scraped);
+  } catch (err) {
+    console.error("[taskman] failed to render button bar:", err);
+  } finally {
+    rendering = false;
+  }
+}
+
+let debounceTimer = null;
+function scheduleSync() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(sync, OBSERVER_DEBOUNCE_MS);
+}
+
+new MutationObserver(scheduleSync).observe(document.body, { childList: true, subtree: true });
+sync().catch((err) => console.error("[taskman] content script error:", err));
