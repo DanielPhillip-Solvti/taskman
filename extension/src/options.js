@@ -69,6 +69,18 @@ async function loadMapping() {
   }
 }
 
+// If "Configure…" was clicked from a ticket page whose project isn't
+// mapped yet, background.js stashed that project name for us — prefill the
+// new-row form with it so the user doesn't have to retype it (and can't
+// typo it, since it must match the breadcrumb exactly).
+async function prefillPendingProject() {
+  const store = await chrome.storage.local.get(["taskmanPendingProject"]);
+  if (!store.taskmanPendingProject) return;
+  document.getElementById("newProject").value = store.taskmanPendingProject;
+  document.getElementById("newUrl").focus();
+  await chrome.storage.local.remove("taskmanPendingProject");
+}
+
 document.getElementById("addRow").addEventListener("click", async () => {
   const project = document.getElementById("newProject").value.trim();
   const repoUrl = document.getElementById("newUrl").value.trim();
@@ -90,3 +102,4 @@ document.getElementById("addRow").addEventListener("click", async () => {
 
 loadConfig();
 loadMapping();
+prefillPendingProject();

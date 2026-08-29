@@ -1,4 +1,4 @@
-taskmand
+/taskmand
 *.db
 .DS_Store
 node_modules/

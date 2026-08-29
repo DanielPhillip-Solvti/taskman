@@ -1,0 +1,85 @@
+name: release
+
+# Builds taskmand for every platform we support and zips the extension,
+# then attaches everything to a GitHub Release. scripts/install.sh
+# downloads from here, so the binary asset naming (taskmand_<os>_<arch>)
+# has to match what that script expects.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zip extension
+        run: |
+          mkdir -p dist
+          # manifest.json's version is what Chrome shows for the loaded
+          # extension — keep it in step with the release tag.
+          sed -i "s/\"version\": \".*\"/\"version\": \"${GITHUB_REF_NAME#v}\"/" extension/manifest.json
+          cd extension
+          zip -r "../dist/taskman-extension-${GITHUB_REF_NAME}.zip" . \
+            -x "node_modules/*" -x "package-lock.json" -x "test/*"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taskman-extension
+          path: dist/*
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          out="dist/taskmand_${GOOS}_${GOARCH}"
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o "$out" ./cmd/taskmand
+          shasum -a 256 "$out" > "$out.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taskmand_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/*
+
+  release:
+    needs: [build, extension]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/solvti/taskman/internal/config"
-	"github.com/solvti/taskman/internal/repos"
-	"github.com/solvti/taskman/internal/work"
+	"github.com/DanielPhillip-Solvti/taskman/internal/config"
+	"github.com/DanielPhillip-Solvti/taskman/internal/repos"
+	"github.com/DanielPhillip-Solvti/taskman/internal/work"
 )
 
 // Server wires the three internal packages to HTTP handlers.
@@ -170,10 +170,13 @@ func (s *Server) handleFetchRepo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// taskReq no longer carries the ticket's title/description — the daemon
+// fetches those (plus chatter and attachments) itself over Odoo's JSON-RPC
+// API using the browser's session cookie, forwarded here by the extension.
 type taskReq struct {
-	RepoName    string `json:"repo_name"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
+	RepoName  string `json:"repo_name"`
+	Host      string `json:"host"`
+	SessionID string `json:"session_id"`
 }
 
 func pathNumber(r *http.Request) (int, error) {
@@ -204,7 +207,11 @@ func (s *Server) queue(w http.ResponseWriter, r *http.Request, fn func(int, stri
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	task, err := fn(number, req.RepoName, req.Title, req.Description)
+	if req.RepoName == "" || req.Host == "" || req.SessionID == "" {
+		writeError(w, http.StatusBadRequest, errors.New("api: repo_name, host, and session_id are required"))
+		return
+	}
+	task, err := fn(number, req.RepoName, req.Host, req.SessionID)
 	if err != nil {
 		var busy work.ErrRepoBusy
 		if errors.As(err, &busy) {

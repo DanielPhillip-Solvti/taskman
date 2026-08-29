@@ -2,9 +2,17 @@
 // selector map and what's confirmed vs. inferred.
 
 /**
- * @returns {{taskNumber:number, projectName:string, title:string, descriptionHtml:string} | null}
+ * @returns {{taskNumber:number, projectName:string} | null}
  * null means "this doesn't look like a task form page" — callers should not
  * render a degraded bar in that case, just stay silent.
+ *
+ * Title/description are deliberately NOT scraped here anymore: the daemon
+ * fetches those (plus chatter and attachments) itself over Odoo's JSON-RPC
+ * API using the session cookie, straight from the record — see
+ * background.js's refineTask/implementTask handlers. That's both more
+ * complete (chatter, attachments) and safer (the daemon controls exactly
+ * how untrusted ticket text gets framed for the agent, instead of trusting
+ * whatever this DOM scrape happened to pick up).
  */
 function scrapeTaskPage() {
   const idEl = document.querySelector('div[name="id"] span');
@@ -24,16 +32,7 @@ function scrapeTaskPage() {
     || (projectBreadcrumbEl && projectBreadcrumbEl.textContent.trim())
     || "";
 
-  const titleTextarea = document.querySelector('textarea[id^="name_"]');
-  const titleBreadcrumb = document.querySelector('.o_last_breadcrumb_item.active span.text-truncate');
-  const title = (titleTextarea && titleTextarea.value.trim())
-    || (titleBreadcrumb && titleBreadcrumb.textContent.trim())
-    || "";
-
-  const descEl = document.querySelector('div[name="description"] .odoo-editor-editable');
-  const descriptionHtml = descEl ? descEl.innerHTML : "";
-
-  return { taskNumber, projectName, title, descriptionHtml };
+  return { taskNumber, projectName };
 }
 
 // Exposed as a global (loaded as a plain content script, no bundler) so
