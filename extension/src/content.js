@@ -96,7 +96,7 @@ function buildBarHost() {
                display: none; align-items: center; justify-content: center;
                pointer-events: auto; font-family: system-ui, sans-serif; }
     .overlay.open { display: flex; }
-    .modal { width: min(760px, 92vw); max-height: 85vh; background: #1f2430;
+    .modal { width: 80vw; height: 80vh; background: #1f2430;
              color: #e5e9f0; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
              display: flex; flex-direction: column; overflow: hidden; }
     .modal-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px;
@@ -112,7 +112,7 @@ function buildBarHost() {
     .icon-btn { background: transparent; border: none; color: #d8dee9; font-size: 16px;
                 line-height: 1; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
     .icon-btn:hover { background: #3b4252; }
-    .modal-body { overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+    .modal-body { overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
     .toolbar { display: flex; gap: 6px; align-items: center; }
     .toolbar .spacer { flex: 1; }
     .toolbar .hint { opacity: .6; font-size: 11px; }
@@ -130,7 +130,7 @@ function buildBarHost() {
     .stream-toggle { cursor: pointer; user-select: none; }
     .stream { background: #11151c; border-radius: 10px; padding: 10px 12px;
               font: 12px/1.55 ui-monospace, monospace; white-space: pre-wrap;
-              max-height: 240px; overflow: auto; }
+              max-height: 60vh; overflow: auto; }
     .stream div.tool-call { color: #88c0d0; }
     .stream div.tool-result { color: #7d889b; padding-left: 14px; }
     .stream div.divider { color: #4c566a; }
