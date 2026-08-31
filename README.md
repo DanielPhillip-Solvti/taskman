@@ -46,8 +46,11 @@ Once installed, control the service with `taskmanctl` (also installed to
 one you're on:
 
 ```bash
-taskmanctl start|stop|restart|status|logs
+taskmanctl start|stop|restart|status|logs|update
 ```
+
+`update` fetches the latest release binary and restarts the service —
+equivalent to re-running the install command above.
 
 ### 2. The extension
 

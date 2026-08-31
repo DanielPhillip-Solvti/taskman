@@ -12,10 +12,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -112,19 +114,123 @@ type Manager struct {
 }
 
 // NewManager wires a Manager against the given config store and repo
-// registry, storing task logs under <home>/tasks/.
+// registry, storing task logs under <home>/tasks/, and recovers whatever
+// task metadata survived a previous run (see loadTasks) so a daemon
+// restart doesn't make GetTaskOutput forget every ticket it ever touched.
 func NewManager(home string, cfg *config.Store, regis *repos.Registry) (*Manager, error) {
 	logsDir := filepath.Join(home, "tasks")
 	if err := os.MkdirAll(logsDir, 0o755); err != nil {
 		return nil, fmt.Errorf("work: create tasks dir %s: %w", logsDir, err)
 	}
-	return &Manager{
+	m := &Manager{
 		home:     home,
 		cfg:      cfg,
 		regis:    regis,
 		tasks:    map[int]*Task{},
 		repoBusy: map[string]int{},
-	}, nil
+	}
+	if err := m.loadTasks(); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// taskMeta is the on-disk shape of a Task's recoverable fields — the same
+// set Task itself marshals to JSON (its process handle and mutex don't
+// implement json.Marshaler-relevant exported fields), written to
+// <home>/tasks/<number>.json alongside the log/summary files.
+type taskMeta struct {
+	Number   int    `json:"number"`
+	RepoName string `json:"repo_name"`
+	Kind     Kind   `json:"kind"`
+	Status   Status `json:"status"`
+	Branch   string `json:"branch,omitempty"`
+	PRURL    string `json:"pr_url,omitempty"`
+	Summary  string `json:"summary,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+func (m *Manager) metaPath(number int) string {
+	return filepath.Join(m.home, "tasks", fmt.Sprintf("%d.json", number))
+}
+
+// persist writes task's current recoverable fields to disk. Called after
+// every state change (queued -> running -> done/failed/interrupted, branch
+// assigned, PR opened, ...) so loadTasks can reconstruct it later. Best
+// effort: a failed write only costs recoverability after a restart, not
+// correctness of the running process, so it's logged rather than fatal.
+func (m *Manager) persist(task *Task) {
+	task.mu.Lock()
+	meta := taskMeta{
+		Number: task.Number, RepoName: task.RepoName, Kind: task.Kind, Status: task.Status,
+		Branch: task.Branch, PRURL: task.PRURL, Summary: task.Summary, Error: task.Error,
+	}
+	task.mu.Unlock()
+
+	data, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		log.Printf("work: marshal task #%d metadata: %v", task.Number, err)
+		return
+	}
+	if err := os.WriteFile(m.metaPath(task.Number), data, 0o644); err != nil {
+		log.Printf("work: write task #%d metadata: %v", task.Number, err)
+	}
+}
+
+// metaFileRe matches the <number>.json metadata files written by persist,
+// as opposed to <number>.log or <number>.summary.md living in the same
+// directory.
+var metaFileRe = regexp.MustCompile(`^(\d+)\.json$`)
+
+// loadTasks reconstructs m.tasks from the metadata files a previous
+// process wrote via persist, so tasks started before a daemon restart are
+// still visible to GetTaskOutput afterwards. Any task still marked
+// queued/running when its metadata was last written was orphaned by the
+// restart — its docker-exec'd agent process (if still alive in the
+// container) is no longer reachable or trackable from this process, so it
+// is surfaced as failed with an explanatory error rather than left
+// claiming to be in progress forever. Its repo is deliberately left free
+// (not re-marked busy) since nothing here can finish or interrupt it.
+func (m *Manager) loadTasks() error {
+	logsDir := filepath.Join(m.home, "tasks")
+	entries, err := os.ReadDir(logsDir)
+	if err != nil {
+		return fmt.Errorf("work: read tasks dir %s: %w", logsDir, err)
+	}
+	for _, entry := range entries {
+		match := metaFileRe.FindStringSubmatch(entry.Name())
+		if entry.IsDir() || match == nil {
+			continue
+		}
+		number, err := strconv.Atoi(match[1])
+		if err != nil {
+			continue // regexp guarantees digits, but be defensive
+		}
+
+		data, err := os.ReadFile(filepath.Join(logsDir, entry.Name()))
+		if err != nil {
+			log.Printf("work: read metadata for task #%d: %v — skipping recovery", number, err)
+			continue
+		}
+		var meta taskMeta
+		if err := json.Unmarshal(data, &meta); err != nil {
+			log.Printf("work: parse metadata for task #%d: %v — skipping recovery", number, err)
+			continue
+		}
+
+		task := &Task{
+			Number: number, RepoName: meta.RepoName, Kind: meta.Kind, Status: meta.Status,
+			Branch: meta.Branch, PRURL: meta.PRURL, Summary: meta.Summary, Error: meta.Error,
+			LogPath: filepath.Join(logsDir, fmt.Sprintf("%d.log", number)),
+		}
+		if task.Status == StatusQueued || task.Status == StatusRunning {
+			task.Status = StatusFailed
+			task.Error = "taskmand restarted while this task was in progress; its agent process (if still running in the container) is orphaned and no longer tracked — check the container directly if in doubt"
+			m.persist(task)
+		}
+		m.tasks[number] = task
+	}
+	return nil
 }
 
 // writeSummary persists the agent's PR summary to its own file, separate
@@ -227,6 +333,7 @@ func (m *Manager) queue(number int, repoName, host, sessionID string, kind Kind)
 	m.mu.Lock()
 	m.tasks[number] = task
 	m.mu.Unlock()
+	m.persist(task)
 
 	switch kind {
 	case KindRefine:
@@ -625,6 +732,7 @@ func (m *Manager) runImplement(task *Task, repo repos.Repo, settings config.Sett
 	task.mu.Lock()
 	task.Branch = branch
 	task.mu.Unlock()
+	m.persist(task)
 	step("creating task branch %s", branch)
 	branchRes := repos.CreateTaskBranch(repo.HostPath(), branch)
 	fmt.Fprintf(w, "ok=%v\n%s", branchRes.Ok, branchRes.Output)
@@ -667,6 +775,7 @@ func (m *Manager) runImplement(task *Task, repo repos.Repo, settings config.Sett
 		task.mu.Lock()
 		task.Summary = summary
 		task.mu.Unlock()
+		m.persist(task)
 	}
 
 	step("pushing %s", branch)
@@ -684,6 +793,7 @@ func (m *Manager) runImplement(task *Task, repo repos.Repo, settings config.Sett
 		m.finish(task, w, StatusDone)
 		return
 	}
+	m.persist(task)
 
 	step("opening draft PR against %s", baseBranch)
 	prTitle := fmt.Sprintf("[task #%d] %s", task.Number, title)
@@ -702,6 +812,7 @@ func (m *Manager) runImplement(task *Task, repo repos.Repo, settings config.Sett
 		task.PRURL = url
 		task.mu.Unlock()
 	}
+	m.persist(task)
 
 	m.finish(task, w, StatusDone)
 }
@@ -779,6 +890,7 @@ func (m *Manager) runAgentInto(task *Task, repo repos.Repo, settings config.Sett
 	task.harnessBin = bin
 	task.Status = StatusRunning
 	task.mu.Unlock()
+	m.persist(task)
 
 	fmt.Fprintf(w, "--- task #%d (%s) agent starting: docker %v ---\n", task.Number, task.Kind, dockerArgs)
 	w.Flush()
@@ -786,17 +898,22 @@ func (m *Manager) runAgentInto(task *Task, repo repos.Repo, settings config.Sett
 	err = cmd.Run()
 
 	task.mu.Lock()
-	defer task.mu.Unlock()
 	if task.Status == StatusInterrupted {
+		task.mu.Unlock()
 		fmt.Fprintf(w, "--- task #%d interrupted ---\n", task.Number)
+		m.persist(task)
 		return false, err
 	}
 	if err != nil {
 		task.Status = StatusFailed
 		task.Error = err.Error()
+		task.mu.Unlock()
 		fmt.Fprintf(w, "--- task #%d failed: %v ---\n", task.Number, err)
+		m.persist(task)
 		return false, err
 	}
+	task.mu.Unlock()
+	m.persist(task)
 	return true, nil
 }
 
@@ -807,6 +924,7 @@ func (m *Manager) finish(task *Task, w *bufio.Writer, status Status) {
 	task.mu.Lock()
 	task.Status = status
 	task.mu.Unlock()
+	m.persist(task)
 	fmt.Fprintf(w, "--- task #%d %s ---\n", task.Number, status)
 }
 
@@ -815,6 +933,7 @@ func (m *Manager) fail(task *Task, err error) {
 	task.Status = StatusFailed
 	task.Error = err.Error()
 	task.mu.Unlock()
+	m.persist(task)
 	m.releaseRepo(task.RepoName)
 }
 

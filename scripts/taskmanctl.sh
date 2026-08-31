@@ -1,11 +1,13 @@
 #!/bin/sh
-# One command to start/stop/check the taskmand service, regardless of
-# whether install.sh registered it with launchd (macOS) or systemd --user
-# (Linux). Falls back to a plain background process if neither is set up.
+# One command to start/stop/check/update the taskmand service, regardless
+# of whether install.sh registered it with launchd (macOS) or systemd
+# --user (Linux). Falls back to a plain background process if neither is
+# set up.
 #
-#   taskmanctl start|stop|restart|status|logs
+#   taskmanctl start|stop|restart|status|logs|update
 set -eu
 
+REPO="DanielPhillip-Solvti/taskman"
 LABEL="com.solvti.taskmand"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG="$HOME/.taskman/taskmand.log"
@@ -13,7 +15,7 @@ BIN="${TASKMAN_INSTALL_DIR:-$HOME/.local/bin}/taskmand"
 PIDFILE="$HOME/.taskman/taskmand.pid"
 
 usage() {
-  echo "usage: taskmanctl start|stop|restart|status|logs" >&2
+  echo "usage: taskmanctl start|stop|restart|status|logs|update" >&2
   exit 1
 }
 
@@ -54,6 +56,16 @@ case "$1" in
     if have_systemd; then journalctl --user -u taskmand -f
     else tail -f "$LOG"
     fi
+    ;;
+  update)
+    # install.sh is idempotent — re-running it fetches the latest release
+    # binary and re-registers the service, overwriting what's there. It
+    # doesn't restart a currently-running instance itself, so do that here
+    # once the new binary is in place.
+    echo "taskman: fetching latest release..."
+    curl -fsSL "https://raw.githubusercontent.com/$REPO/main/scripts/install.sh" | sh
+    echo "taskman: restarting with the updated binary..."
+    "$0" restart
     ;;
   *) usage ;;
 esac
