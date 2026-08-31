@@ -46,11 +46,14 @@ Once installed, control the service with `taskmanctl` (also installed to
 one you're on:
 
 ```bash
-taskmanctl start|stop|restart|status|logs|update
+taskmanctl start|stop|restart|status|logs|update|uninstall
 ```
 
 `update` fetches the latest release binary and restarts the service —
-equivalent to re-running the install command above.
+equivalent to re-running the install command above. `uninstall` stops the
+service, deregisters it from launchd/systemd, and removes the `taskmand`
+and `taskmanctl` binaries; it leaves `~/.taskman` (task history, logs,
+config) in place and tells you how to remove that too if you want it gone.
 
 ### 2. The extension
 
