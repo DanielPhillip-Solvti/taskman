@@ -538,7 +538,19 @@ func harnessArgs(harness, model, prompt string) (string, []string, error) {
 		// calls, tool results, assistant text, final result) as they
 		// happen, which claudeStreamWriter below turns into readable log
 		// lines in real time.
-		return claudeBin, []string{"-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose"}, nil
+		//
+		// --dangerously-skip-permissions: this runs fully headless over
+		// `docker exec` with no TTY, so there is no channel for Claude Code's
+		// normal interactive tool-approval prompt to reach a human — without
+		// this flag, every Edit/Write/Bash call it would otherwise ask about
+		// just gets silently refused and the agent reports back having
+		// changed nothing. That's consistent with, not a workaround of, this
+		// project's actual privilege boundary (see README "Philosophy &
+		// isolation"): the agent already runs with the operator's own git
+		// and Docker credentials inside their own dev container, so gating
+		// individual tool calls behind a prompt nothing can answer adds no
+		// real safety, only silent no-op runs.
+		return claudeBin, []string{"-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"}, nil
 	case "opencode":
 		return "opencode", []string{"run", prompt, "--model", model}, nil
 	default:
@@ -746,6 +758,22 @@ func (m *Manager) runImplement(task *Task, repo repos.Repo, settings config.Sett
 	prompt := fmt.Sprintf(implementTemplate, repo.Name, "odoo", "enterprise", description)
 	if ok := m.runAgent(task, repo, settings, w, prompt); !ok {
 		return // runAgent already set a terminal status (failed/interrupted) and logged why
+	}
+
+	// The agent can exit 0 having made no commits at all — most commonly
+	// because something (a tool-permission prompt it had no way to answer,
+	// a refusal, a genuine "nothing to do") stopped it before it ever
+	// edited a file. Catch that here rather than pushing a branch identical
+	// to base and opening a PR with nothing in it.
+	changed, err := repos.HasCommitsSince(repo.HostPath(), baseBranch, branch)
+	if err != nil {
+		m.fail(task, fmt.Errorf("work: check for commits on %s: %w", branch, err))
+		fmt.Fprintf(w, "%v\n", err)
+		return
+	}
+	if !changed {
+		m.fail(task, fmt.Errorf("work: agent made no commits on %s — see the agent transcript above for why (a tool-permission prompt it couldn't answer is the most likely cause)", branch))
+		return
 	}
 
 	step("agent finished — asking it to summarize its changes for the PR")

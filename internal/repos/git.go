@@ -99,6 +99,26 @@ func CreateTaskBranch(repoPath, branch string) GitResult {
 	return runIn(repoPath, "git", "checkout", branch)
 }
 
+// HasCommitsSince reports whether branch (the currently checked-out task
+// branch) has any commits base doesn't — i.e. whether the agent actually
+// changed anything. Used to short-circuit push/PR when it didn't: an
+// agent that hit a tool-permission wall or otherwise made no edits still
+// exits 0, and without this check runImplement would push a branch
+// identical to base and then attempt a pointless PR against it.
+func HasCommitsSince(repoPath, base, branch string) (bool, error) {
+	cmd := exec.Command("git", "rev-list", "--count", base+".."+branch)
+	cmd.Dir = repoPath
+	out, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("repos: rev-list %s..%s in %s: %w", base, branch, repoPath, err)
+	}
+	var count int
+	if _, err := fmt.Sscanf(string(out), "%d", &count); err != nil {
+		return false, fmt.Errorf("repos: parse rev-list output %q: %w", out, err)
+	}
+	return count > 0, nil
+}
+
 // PushBranch pushes the branch to origin, setting upstream.
 func PushBranch(repoPath, branch string) GitResult {
 	return runIn(repoPath, "git", "push", "-u", "origin", branch)
