@@ -96,8 +96,13 @@ function buildBarHost() {
                display: none; align-items: center; justify-content: center;
                pointer-events: auto; font-family: system-ui, sans-serif; }
     .overlay.open { display: flex; }
-    .modal { width: 80vw; height: 80vh; background: #1f2430;
-             color: #e5e9f0; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    /* #taskman-modal (an id, not just .modal) so nothing else injected into
+       this shadow root can win a specificity fight over sizing — the modal
+       must always render at 80vw/80vh, not whatever a lower-specificity
+       rule elsewhere claims. */
+    #taskman-modal { width: 80vw; height: 80vh; background: #1f2430;
+             color: #e5e9f0; border-radius: 14px;
+             box-shadow: 0 20px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(136,192,208,.35), 0 0 48px rgba(136,192,208,.28);
              display: flex; flex-direction: column; overflow: hidden; }
     .modal-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px;
                     border-bottom: 1px solid #3b4252; flex-shrink: 0; }
@@ -177,6 +182,7 @@ function el(tag, className, text) {
 function buildModal(overlay, taskNumber, actions) {
   overlay.textContent = "";
   const modal = el("div", "modal");
+  modal.id = "taskman-modal";
   overlay.appendChild(modal);
 
   const header = el("div", "modal-header");
